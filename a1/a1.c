@@ -6,23 +6,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-int verifyNameEnd(char *full_name, char*end_name) {
-    int length_full_name = strlen(full_name);
-    int length_name_end = strlen(end_name);
-
-    if(length_name_end>length_full_name)
-    {
-        return 0;
-    }
-
-    for(int i = 0; i < length_name_end; i++) {
-        if(full_name[i + length_full_name - length_name_end] != end_name[i]) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
 void listRecursive(const char *path, char *name_end, int flag_filter, int flag_perm_write)
 {
     DIR *dir = NULL;
@@ -37,7 +20,7 @@ void listRecursive(const char *path, char *name_end, int flag_filter, int flag_p
         return;
     }
 
-    //printf("SUCCESS\n");
+    // printf("SUCCESS\n");
     while ((entry = readdir(dir)) != NULL)
     {
         if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0)
@@ -46,14 +29,34 @@ void listRecursive(const char *path, char *name_end, int flag_filter, int flag_p
 
             if (lstat(fullPath, &statbuf) == 0)
             {
-                if(flag_filter == 0 || (flag_filter == 1 && verifyNameEnd(fullPath, name_end) == 1)) 
+                if (flag_filter == 1)
                 {
-                    if (flag_perm_write == 0 || (flag_perm_write == 1 && (statbuf.st_mode & S_IWUSR)))
+                    int length_full_name = strlen(fullPath);
+                    int length_name_end = strlen(name_end);
+                    int mistake = 0;
+
+                    if (length_name_end < length_full_name)
                     {
-                        printf("%s\n", fullPath);
+                        for (int i = 0; i < length_name_end; i++)
+                        {
+                            if (fullPath[i + length_full_name - length_name_end] != name_end[i])
+                            {
+                                mistake++;
+                            }
+                        }
+                        if (mistake == 0)
+                        {
+                            if (flag_perm_write == 0 || (flag_perm_write == 1 && (statbuf.st_mode & S_IWUSR))) {
+                                    printf("%s\n", fullPath);
+                            }
+                                
+                            
+                        } 
                     }
-                }
-               
+                } else if (flag_perm_write == 0 || (flag_perm_write == 1 && (statbuf.st_mode & S_IWUSR))) {
+                    printf("%s\n", fullPath);
+                } 
+
                 if (S_ISDIR(statbuf.st_mode))
                 {
                     listRecursive(fullPath, name_end, flag_filter, flag_perm_write);
@@ -87,19 +90,37 @@ void listUnrecursive(const char *path, char *name_end, int flag_filter, int flag
 
             if (lstat(fullPath, &statbuf) == 0)
             {
-                 if(flag_filter == 0 || (flag_filter == 1 && verifyNameEnd(fullPath, name_end) == 1)) 
+               if (flag_filter == 1)
                 {
-                    if (flag_perm_write == 0 || (flag_perm_write == 1 && (statbuf.st_mode & S_IWUSR)))
+                    int length_full_name = strlen(fullPath);
+                    int length_name_end = strlen(name_end);
+                    int mistake = 0;
+
+                    if (length_name_end < length_full_name)
                     {
-                        printf("%s\n", fullPath);
+                        for (int i = 0; i < length_name_end; i++)
+                        {
+                            if (fullPath[i + length_full_name - length_name_end] != name_end[i])
+                            {
+                                mistake++;
+                            }
+                        }
+                        if (mistake == 0)
+                        {
+                                 if (flag_perm_write == 0 || (flag_perm_write == 1 && (statbuf.st_mode & S_IWUSR))) {
+                                    printf("%s\n", fullPath);
+                            }
+                            
+                        } 
                     }
-                }
-                }
-                }
+                } else if (flag_perm_write == 0 || (flag_perm_write == 1 && (statbuf.st_mode & S_IWUSR))) {
+                    printf("%s\n", fullPath);
+                } 
             }
-            closedir(dir);
+        }
+    }
+    closedir(dir);
 }
-    
 
 int main(int argc, char **argv)
 {
@@ -126,7 +147,7 @@ int main(int argc, char **argv)
                     {
                         path = argv[j] + 5;
                         break;
-                    }  
+                    }
                 }
                 if (path == NULL)
                 {
@@ -161,24 +182,22 @@ int main(int argc, char **argv)
                 if (lstat(path, &sb) == -1)
                 {
                     perror("lstat");
-                    exit(EXIT_FAILURE);
+                    return -1;
                 }
 
                 if (!S_ISDIR(sb.st_mode))
                 {
-                    printf("ERROR\n%s is not a directory\n", path);
-                    exit(EXIT_FAILURE);
+                    return -1;
                 }
 
                 if (flag_perm_write && ((sb.st_mode & S_IWUSR) == 0))
                 {
-                    printf("ERROR\n%s does not have write permission for owner\n", path);
-                    exit(EXIT_FAILURE);
+                    return -1;
                 }
-                
+
                 if (flag_recursive == 1)
                 {
-                     printf("SUCCESS\n");
+                    printf("SUCCESS\n");
                     listRecursive(path, string_end, flag_filter_name, flag_perm_write);
                 }
                 else
