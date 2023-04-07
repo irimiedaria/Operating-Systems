@@ -5,6 +5,17 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+
+typedef struct SECTION_HEADER {
+    
+    char SECT_NAME[20];
+    int SECT_TYPE;
+    int SECT_OFFSET;
+    int SECT_SIZE;
+} SECTION_HEADER;
+
+int max_no_of_sections = 16;
 
 void listRecursive(const char *path, char *name_end, int flag_filter, int flag_perm_write)
 {
@@ -122,6 +133,80 @@ void listUnrecursive(const char *path, char *name_end, int flag_filter, int flag
     closedir(dir);
 }
 
+int parseSF(const char *path) {
+    
+    char MAGIC[2] = "";
+    int HEADER_SIZE = 0;
+    int VERSION = 0;
+    int NO_OF_SECTIONS = 0;
+
+    SECTION_HEADER SECTION_HEADERS[max_no_of_sections];
+    
+    int fd = open(path, O_RDONLY);
+
+    if(fd == -1) {
+        printf("ERROR opening the file\n");
+        return 0;
+    }
+
+    lseek(fd, -1, SEEK_END);
+    read(fd, &MAGIC, 1);
+    MAGIC[1] = '\0';
+    if(strcmp("4", MAGIC) != 0) {
+        printf("ERROR\nwrong magic\n");
+        return 0;
+    } 
+
+    lseek(fd, -3, SEEK_END);
+    read(fd, &HEADER_SIZE, 2);
+    
+    lseek(fd, -HEADER_SIZE, SEEK_END);
+    read(fd, &VERSION, 4);
+
+    if(VERSION < 17 || VERSION > 109) {
+        printf("ERROR\nwrong version\n");
+        return 0;
+    } 
+
+    read(fd, &NO_OF_SECTIONS, 1);
+
+    if(NO_OF_SECTIONS < 3 || NO_OF_SECTIONS > 16) {
+        printf("ERROR\nwrong sect_nr\n");
+        return 0;
+    } 
+
+    for(int i = 0; i < NO_OF_SECTIONS; i++) {
+
+        SECTION_HEADERS[i].SECT_SIZE = 0;
+        SECTION_HEADERS[i].SECT_OFFSET = 0;
+        SECTION_HEADERS[i].SECT_TYPE = 0;
+    }
+
+    for(int i = 0; i < NO_OF_SECTIONS; i++) {
+
+        read(fd, SECTION_HEADERS[i].SECT_NAME, 19);
+        SECTION_HEADERS[i].SECT_NAME[19] = '\0';
+        read(fd, &SECTION_HEADERS[i].SECT_TYPE, 2);
+        read(fd, &SECTION_HEADERS[i].SECT_OFFSET, 4);
+        read(fd, &SECTION_HEADERS[i].SECT_SIZE, 4);
+
+        if(SECTION_HEADERS[i].SECT_TYPE != 94 && SECTION_HEADERS[i].SECT_TYPE != 69 && SECTION_HEADERS[i].SECT_TYPE != 74 && SECTION_HEADERS[i].SECT_TYPE != 31 && SECTION_HEADERS[i].SECT_TYPE != 67 && SECTION_HEADERS[i].SECT_TYPE != 60) {
+            printf("ERROR\nwrong sect_types\n");
+            return 0;     
+        }
+    }
+
+    printf("SUCCESS\nversion=%d\nnr_sections=%d\n", VERSION, NO_OF_SECTIONS);
+    for(int i = 0; i < NO_OF_SECTIONS; i++) {
+        printf("section%d: %s %d %d\n", i + 1, SECTION_HEADERS[i].SECT_NAME, SECTION_HEADERS[i].SECT_TYPE, SECTION_HEADERS[i].SECT_SIZE);
+    }
+    
+
+    close(fd);
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     if (argc >= 2)
@@ -204,6 +289,28 @@ int main(int argc, char **argv)
                 {
                     listUnrecursive(path, string_end, flag_filter_name, flag_perm_write);
                 }
+            }
+
+
+            if (strcmp(argv[i], "parse") == 0) {
+
+                const char *path = NULL;
+
+                for (int j = 1; j < argc; j++)
+                {
+                    if (strncmp(argv[j], "path=", 5) == 0)
+                    {
+                        path = argv[j] + 5;
+                        break;
+                    }
+                }
+                if (path == NULL)
+                {
+                    printf("No argument found to match the path= \n");
+                    return 1;
+                }
+
+                parseSF(path);
             }
         }
     }
