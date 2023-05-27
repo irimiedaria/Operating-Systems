@@ -207,6 +207,138 @@ int parseSF(const char *path) {
     return 0;
 }
 
+const char* validateSF(const char *path) {
+    
+    char MAGIC[2] = "";
+    int HEADER_SIZE = 0;
+    int VERSION = 0;
+    int NO_OF_SECTIONS = 0;
+
+    SECTION_HEADER SECTION_HEADERS[max_no_of_sections];
+    
+    int fd = open(path, O_RDONLY);
+
+    if(fd == -1) {
+        printf("ERROR opening the file\n");
+        return 0;
+    }
+
+    lseek(fd, -1, SEEK_END);
+    read(fd, &MAGIC, 1);
+    MAGIC[1] = '\0';
+    if(strcmp("4", MAGIC) != 0) {
+        printf("ERROR\nwrong magic\n");
+        return 0;
+    } 
+
+    lseek(fd, -3, SEEK_END);
+    read(fd, &HEADER_SIZE, 2);
+    
+    lseek(fd, -HEADER_SIZE, SEEK_END);
+    read(fd, &VERSION, 4);
+
+    if(VERSION < 17 || VERSION > 109) {
+        printf("ERROR\nwrong version\n");
+        return 0;
+    } 
+
+    read(fd, &NO_OF_SECTIONS, 1);
+
+    if(NO_OF_SECTIONS < 3 || NO_OF_SECTIONS > 16) {
+        printf("ERROR\nwrong sect_nr\n");
+        return 0;
+    } 
+
+    for(int i = 0; i < NO_OF_SECTIONS; i++) {
+
+        SECTION_HEADERS[i].SECT_SIZE = 0;
+        SECTION_HEADERS[i].SECT_OFFSET = 0;
+        SECTION_HEADERS[i].SECT_TYPE = 0;
+    }
+
+    for(int i = 0; i < NO_OF_SECTIONS; i++) {
+
+        read(fd, SECTION_HEADERS[i].SECT_NAME, 19);
+        SECTION_HEADERS[i].SECT_NAME[19] = '\0';
+        read(fd, &SECTION_HEADERS[i].SECT_TYPE, 2);
+        read(fd, &SECTION_HEADERS[i].SECT_OFFSET, 4);
+        read(fd, &SECTION_HEADERS[i].SECT_SIZE, 4);
+
+        if(SECTION_HEADERS[i].SECT_TYPE != 94 && SECTION_HEADERS[i].SECT_TYPE != 69 && SECTION_HEADERS[i].SECT_TYPE != 74 && SECTION_HEADERS[i].SECT_TYPE != 31 && SECTION_HEADERS[i].SECT_TYPE != 67 && SECTION_HEADERS[i].SECT_TYPE != 60) {
+            printf("ERROR\nwrong sect_types\n");
+            return 0;     
+        }
+    }
+
+    close(fd);
+
+    return 0;
+}
+
+void extractSF(const char *path, int sect_nr, int line_nr) {
+
+    int fd = open(path, O_RDONLY);
+    if (fd == -1) {
+        perror("ERROR\ninvalid file\n");
+        return;
+    }
+
+    int validation_result = validateSF(fd);
+    if (validation_result == -1) {
+        perror("ERROR\ninvalid file\n");
+        close(fd);
+        return;
+    }
+    else if (validation_result == -2) {
+        perror("ERROR\ninvalid section\n");
+        close(fd);
+        return;
+    }
+
+    SECTION_HEADER section_header;
+    if (lseek(fd, section_offset[sect_nr - 1], SEEK_SET) == -1 || read(fd, &section_header, sizeof(SECTION_HEADER)) != sizeof(SECTION_HEADER)) {
+        perror("ERROR\ninvalid file|section|line\n");
+        close(fd);
+        return;
+    }
+
+    if (section_header.SECT_TYPE == 0x0001) {
+        int offset = section_offset[sect_nr - 1] + section_header.SECT_OFFSET;
+        int line_count = 1;
+
+        char c;
+        int bytes_read = pread(fd, &c, 1, offset);
+        while (bytes_read == 1 && line_count != line_nr) {
+            if (c == '\n') {
+                line_count++;
+            }
+            offset++;
+            bytes_read = pread(fd, &c, 1, offset);
+        }
+
+        if (line_count == line_nr && bytes_read == 1) {
+            
+            char line[512];
+            int line_offset = offset + 1;
+            int line_length = 0;
+            bytes_read = pread(fd, &c, 1, line_offset);
+            while (bytes_read == 1 && c != '\n') {
+                line[line_length++] = c;
+                bytes_read = pread(fd, &c, 1, ++line_offset);
+            }
+            line[line_length] = '\0';
+
+            printf("SUCCESS\n%s\n", line);
+            close(fd);
+            return;
+        }
+    }
+
+    perror("ERROR\ninvalid file|section|line\n");
+    close(fd);
+}
+
+
 int main(int argc, char **argv)
 {
     if (argc >= 2)
@@ -311,6 +443,43 @@ int main(int argc, char **argv)
                 }
 
                 parseSF(path);
+            }
+
+            if (strcmp(argv[i], "extract") == 0) {
+
+                int section_number = 0;
+                int line_number = NULL;
+
+                const char *path = NULL;
+
+                for (int j = 1; j < argc; j++)
+                {
+                    if (strncmp(argv[j], "path=", 5) == 0)
+                    {
+                        path = argv[j] + 5;
+                        break;
+                    } else if (strncmp(argv[j], "section=", 8) == 0) {
+
+                    }
+                }
+                if (path == NULL)
+                {
+                    printf("No argument found to match the path= \n");
+                    return 1;
+                }
+
+
+                for (int j = 0; j < argc; j++)
+                {
+                    if (strncmp(argv[j], "section=", 8) == 0)
+                    {
+                        section_number = argv[j] + 8;
+                    } else if (strncmp(argv[j], "line=", 5) == 0) {
+                        line_number = argv[j] + 5;
+                    }
+                }
+
+                extractSF(path, section_number, line_number);
             }
         }
     }
