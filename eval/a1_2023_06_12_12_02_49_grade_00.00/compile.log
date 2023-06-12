@@ -1,0 +1,26 @@
+a1.c: In function 'extractSF':
+a1.c:286:40: warning: passing argument 1 of 'validateSF' makes pointer from integer without a cast [-Wint-conversion]
+  286 |     int validation_result = validateSF(fd);
+      |                                        ^~
+      |                                        |
+      |                                        int
+a1.c:210:36: note: expected 'const char *' but argument is of type 'int'
+  210 | const char* validateSF(const char *path) {
+      |                        ~~~~~~~~~~~~^~~~
+a1.c:286:29: warning: initialization of 'int' from 'const char *' makes integer from pointer without a cast [-Wint-conversion]
+  286 |     int validation_result = validateSF(fd);
+      |                             ^~~~~~~~~~
+a1.c:299:19: error: 'section_offset' undeclared (first use in this function)
+  299 |     if (lseek(fd, section_offset[sect_nr - 1], SEEK_SET) == -1 || read(fd, &section_header, sizeof(SECTION_HEADER)) != sizeof(SECTION_HEADER)) {
+      |                   ^~~~~~~~~~~~~~
+a1.c:299:19: note: each undeclared identifier is reported only once for each function it appears in
+a1.c: In function 'main':
+a1.c:451:35: warning: initialization of 'int' from 'void *' makes integer from pointer without a cast [-Wint-conversion]
+  451 |                 int line_number = NULL;
+      |                                   ^~~~
+a1.c:476:40: warning: assignment to 'int' from 'char *' makes integer from pointer without a cast [-Wint-conversion]
+  476 |                         section_number = argv[j] + 8;
+      |                                        ^
+a1.c:478:37: warning: assignment to 'int' from 'char *' makes integer from pointer without a cast [-Wint-conversion]
+  478 |                         line_number = argv[j] + 5;
+      |                                     ^
